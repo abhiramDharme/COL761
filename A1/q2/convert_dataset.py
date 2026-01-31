@@ -7,22 +7,20 @@ All labels are mapped to integers for maximum performance and compatibility.
 import sys
 import os
 
-# Fixed label mapping from Piazza instructions
-LABEL_ORDER = ['Br', 'C', 'Cl', 'F', 'H', 'I', 'N', 'O', 'P', 'S', 'Si']
-LABEL_MAP = {label: idx for idx, label in enumerate(LABEL_ORDER)}
-
-# Edge labels are still auto-generated
+# Global label mappings (string to int)
+node_label_map = {}
 edge_label_map = {}
+next_node_label_id = 0
 next_edge_label_id = 0
 
 def get_node_label_id(label: str) -> int:
-    """Use fixed label mapping from Piazza."""
-    if label not in LABEL_MAP:
-        raise ValueError(f"Unknown node label: {label}. Expected one of {LABEL_ORDER}")
-    return LABEL_MAP[label]
+    global next_node_label_id
+    if label not in node_label_map:
+        node_label_map[label] = next_node_label_id
+        next_node_label_id += 1
+    return node_label_map[label]
 
 def get_edge_label_id(label: str) -> int:
-    """Auto-generate edge label IDs."""
     global next_edge_label_id
     if label not in edge_label_map:
         edge_label_map[label] = next_edge_label_id
@@ -105,7 +103,7 @@ def main():
     convert_to_gspan(graphs, os.path.join(out_dir, "yeast_gspan.txt"))
     convert_to_fsg(graphs, os.path.join(out_dir, "yeast_fsg.txt"))
     convert_to_gaston(graphs, os.path.join(out_dir, "yeast_gaston.txt"))
-    print(f"Conversion complete. Used fixed label mapping: {len(LABEL_MAP)} node labels, {next_edge_label_id} edge labels.")
+    print(f"Conversion complete using integer labels. Mapped {next_node_label_id} node labels and {next_edge_label_id} edge labels.")
 
 if __name__ == "__main__":
     main()
