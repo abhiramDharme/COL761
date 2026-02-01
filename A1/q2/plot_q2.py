@@ -13,14 +13,12 @@ def main():
         print("Usage: python3 plot_q2.py <thresholds> <gspan_times> <fsg_times> <gaston_times> <output_path>")
         sys.exit(1)
 
-    # Parse arguments
     thresholds = [int(x) for x in sys.argv[1].split(',')]
     gspan_times = [float(x) for x in sys.argv[2].split(',')]
     fsg_times = [float(x) for x in sys.argv[3].split(',')]
     gaston_times = [float(x) for x in sys.argv[4].split(',')]
     output_path = sys.argv[5]
 
-    # Create the plot
     plt.figure(figsize=(10, 6))
     
     plt.plot(thresholds, gspan_times, 'o-', label='gSpan', color='blue', linewidth=2, markersize=8)
@@ -33,10 +31,7 @@ def main():
     plt.legend(fontsize=11)
     plt.grid(True, alpha=0.3)
     
-    # Set x-axis ticks to match thresholds
     plt.xticks(thresholds)
-    
-    # Ensure y-axis starts at 0
     plt.ylim(bottom=0)
     
     plt.tight_layout()

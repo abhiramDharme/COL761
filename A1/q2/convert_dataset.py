@@ -7,22 +7,19 @@ All labels are mapped to integers for maximum performance and compatibility.
 import sys
 import os
 
-# Fixed label mapping from Piazza instructions
 LABEL_ORDER = ['Br', 'C', 'Cl', 'F', 'H', 'I', 'N', 'O', 'P', 'S', 'Si']
 LABEL_MAP = {label: idx for idx, label in enumerate(LABEL_ORDER)}
 
-# Edge labels are still auto-generated
 edge_label_map = {}
 next_edge_label_id = 0
 
 def get_node_label_id(label: str) -> int:
-    """Use fixed label mapping from Piazza."""
+    """Use fixed label mapping."""
     if label not in LABEL_MAP:
         raise ValueError(f"Unknown node label: {label}. Expected one of {LABEL_ORDER}")
     return LABEL_MAP[label]
 
 def get_edge_label_id(label: str) -> int:
-    """Auto-generate edge label IDs."""
     global next_edge_label_id
     if label not in edge_label_map:
         edge_label_map[label] = next_edge_label_id
