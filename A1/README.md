@@ -1,7 +1,8 @@
 # COL761 Data Mining - Assignment 1
 
-### Transferring to Baadal VM
-To transfer the project to Baadal and run the Linux-specific benchmarks (gSpan, FSG, Task 1):
+## Transferring to Baadal VM
+
+To transfer the project to Baadal and run the Linux-specific benchmarks:
 
 1. **On your Mac (Local):**
    ```bash
@@ -11,16 +12,14 @@ To transfer the project to Baadal and run the Linux-specific benchmarks (gSpan, 
                --exclude 'q1/output/*' \
                --exclude 'q2/output/*' \
                --exclude '*.o' \
-               --exclude '.DS_Store' \
-               /Users/abhiramdharme/COL/COL761/A1 10.17.6.69:~/
-   ```
 
 2. **On Baadal (Remote):**
    ```bash
-   ssh baadalvm@10.17.6.69
    cd ~/A1/libs/apriori/src && make clean && make
    cd ~/A1/libs/fpgrowth/src && make clean && make
    cd ~/A1/libs/gaston-1.1 && make clean && make
+   cd ~/A1/libs/gSpan6 && make clean && make
+   cd ~/A1/fsg/Linux && make clean && make
    ```
 
 ## Directory Structure
@@ -38,8 +37,14 @@ A1/
 │   ├── convert_dataset.py       # Dataset format converter
 │   ├── plot_q2.py               # Plotting script
 │   └── q2_report.md             # Analysis report (convert to PDF)
-├── libs/                        # External libraries (Apriori, FP-Growth, Gaston, gSpan, FSG)
+├── libs/                        # External libraries
+│   ├── apriori/                 # Apriori implementation
+│   ├── fpgrowth/                # FP-Growth implementation
+│   ├── gaston-1.1/              # Gaston implementation
+│   ├── gSpan6/                  # gSpan implementation
+│   └── fsg/                     # FSG implementation
 ├── Yeast/                       # Yeast dataset files
+│   └── 167.txt_graph            # Yeast graph dataset
 ├── README.md                    # This file
 └── CHECKLIST.md                 # Completion checklist
 ```
@@ -51,37 +56,37 @@ A1/
 - GCC/G++ for library compilation
 
 ### Part 1: Frequent Itemset Mining
+
 #### Task 1 (webdocs.dat)
-1. Run the pipeline script:
-   ```bash
-   cd q1
-   bash q1_1.sh <apriori_path> <fpgrowth_path> <dataset_path> <output_dir>
-   ```
+```bash
+cd q1
+bash q1_1.sh ../libs/apriori/src/apriori ../libs/fpgrowth/src/fpgrowth ../webdocs.dat ./output_q1_1
+```
 
 #### Task 2 (Synthetic Dataset)
-1. Run the generation and benchmark script:
-   ```bash
-   cd q1
-   bash q1_2.sh
-   ```
+```bash
+cd q1
+bash q1_2.sh 40 15000
+```
 
 ### Part 2: Frequent Subgraph Mining
-1. Run the full comparison pipeline:
-   ```bash
-   cd q2
-   bash q2.sh <gspan_exe> <fsg_exe> <gaston_exe> <yeast_data_path> <output_dir>
-   ```
+```bash
+cd q2
+bash q2.sh ../libs/gSpan6/gSpan ../fsg/Linux/fsg ../libs/gaston-1.1/gaston ../Yeast/167.txt_graph ./output_q2
+```
 
 ## Progress Tracker
-- [/] Part 1: Frequent Itemset Mining
-    - [x] Compilation (Local)
-    - [ ] Obtain full `webdocs.dat` (Server)
-    - [ ] Run Task 1 Benchmark on Baadal
-    - [x] Task 2 (Synthetic Dataset)
-    - [x] Task 1/2 Analysis Report
-- [/] Part 2: Frequent Subgraph Mining
-    - [x] Compilation (Gaston Local, others on Baadal)
-    - [x] Dataset Conversion
-    - [x] Gaston Benchmark (Local)
-    - [ ] gSpan & FSG Benchmark (Baadal)
-    - [x] Analysis Report
+
+- [x] Part 1: Frequent Itemset Mining
+    - [x] Compilation (Local & Baadal)
+    - [x] Task 1 Benchmark (webdocs.dat on Baadal)
+    - [x] Task 2 Synthetic Dataset Generation
+    - [x] Plotting scripts
+    - [ ] Task 1/2 Analysis Report
+    
+- [x] Part 2: Frequent Subgraph Mining
+    - [x] Compilation (All algorithms on Baadal)
+    - [x] Dataset Conversion (with Piazza label mapping)
+    - [x] gSpan, FSG, Gaston Benchmarks
+    - [x] Plotting script
+    - [ ] Analysis Report
