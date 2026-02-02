@@ -7,7 +7,7 @@
 # CONFIGURATION - CHANGE THESE IF NEEDED
 # ============================================
 TIMEOUT_SECONDS=3600  # 1 hour timeout per algorithm per threshold
-TIMEOUT_MESSAGE="The timeout (3600) for the support threshold."
+TIMEOUT_MESSAGE=""
 # ============================================
 
 # Check arguments

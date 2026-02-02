@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
 """
-Generate synthetic dataset matching Figure 1 runtime behavior.
+Synthetic Dataset Generation for Q1.2
 
-FIXED PARAMETERS:
-- Transactions: 15,000
-- Items: 30 (IDs 0-29)
-
-ITEM GROUPS:
-1. Core items (0-4): 5 items at 90% support
-2. Plateau items (5-19): 15 items at 70% support, 50% co-occur together
-3. Tail items (20-29): 10 items at 5% support
-
-TARGET BEHAVIOR:
-- Apriori: High & flat at 5-50%, sharp drop at 90%
-- FP-Growth: Relatively flat throughout, then drops at 90%
+STRATEGY:
+- High co-occurrence (Q_PLATEAU_ALL = 0.65) for flat runtime at 10-50%
+- Noise items with support 5-9% to increase itemsets at 5% threshold
 """
 
 import sys
@@ -24,63 +15,37 @@ from collections import Counter
 def generate_dataset(num_items: int, num_transactions: int) -> list:
     random.seed(42)
     
-    DUMMY_START = num_items
+    # Item partitions
+    CORE_ITEMS = list(range(0, 5))       # 5 items: 0-4
+    PLATEAU_ITEMS = list(range(5, 20))   # 15 items: 5-19
+    NOISE_ITEMS = list(range(20, num_items))  # Remaining for noise
     
-    # Dynamic item groups based on num_items (expected 20-40)
-    # Core: ~15% of items, Plateau: ~50% of items, Tail: ~35% of items
-    num_core = max(3, num_items // 6)           # ~5 items for 30
-    num_plateau = max(5, num_items // 2)        # ~15 items for 30
-    num_tail = num_items - num_core - num_plateau  # remainder
-    
-    CORE_ITEMS = list(range(0, num_core))
-    PLATEAU_ITEMS = list(range(num_core, num_core + num_plateau))
-    TAIL_ITEMS = list(range(num_core + num_plateau, num_items))
-    
-    # Support probabilities
-    CORE_PROB = 0.95      # Each core item appears with 95% probability (>90%)
-    TAIL_PROB = 0.07      # Tail items at ~7% (frequent at 5%, drop at 10%)
+    P_CORE = 0.95
+    Q_PLATEAU_ALL = 0.65  # High co-occurrence for flat runtime at 10-50%
+    P_PLATEAU_IND = 0.60  # For remaining 35% of transactions
+    P_NOISE = 0.08        # Higher noise for 5% threshold
     
     transactions = []
-    txn_counter = 0
     
-    while len(transactions) < num_transactions:
-        transaction = []
+    for _ in range(num_transactions):
+        txn = []
         
-        # Step 1: Add each core item with prob 0.95
         for item in CORE_ITEMS:
-            if random.random() < CORE_PROB:
-                transaction.append(item)
+            if random.random() < P_CORE:
+                txn.append(item)
         
-        # Step 2: Plateau items - all appear together 62% of the time
-        # Higher co-occurrence keeps 50% flat, lower independent prob creates gap
-        if random.random() < 0.62:
-            # Add ALL plateau items together (creates dense itemsets)
-            transaction.extend(PLATEAU_ITEMS)
+        if random.random() < Q_PLATEAU_ALL:
+            txn.extend(PLATEAU_ITEMS)
         else:
-            # 38%: add each plateau item independently with 21% prob
-            # Total support per item = 62% + 38%*21% ≈ 70%
             for item in PLATEAU_ITEMS:
-                if random.random() < 0.21:
-                    transaction.append(item)
+                if random.random() < P_PLATEAU_IND:
+                    txn.append(item)
         
-        # Step 3: Add each tail item with prob 0.07
-        for item in TAIL_ITEMS:
-            if random.random() < TAIL_PROB:
-                transaction.append(item)
+        for item in NOISE_ITEMS:
+            if random.random() < P_NOISE:
+                txn.append(item)
         
-        # Step 4: If transaction is empty, skip (resample)
-        if not transaction:
-            continue
-        
-        # Step 5: Add unique dummy item (each appears exactly once, not frequent)
-        transaction.append(DUMMY_START + txn_counter)
-        txn_counter += 1
-        
-        # Store sorted transaction
-        transactions.append(sorted(transaction))
-        
-        if len(transactions) >= num_transactions:
-            break
+        transactions.append(sorted(txn))
     
     return transactions
 
@@ -89,74 +54,26 @@ def write_dataset(transactions: list, output_path: str):
     """Write transactions to file."""
     with open(output_path, 'w') as f:
         for trans in transactions:
-            f.write(' '.join(map(str, trans)) + '\n')
+            f.write(' '.join(str(item) for item in trans) + '\n')
 
 
 def validate_dataset(transactions: list, num_items: int):
-    counts = Counter()
-    for txn in transactions:
-        for item in txn:
-            counts[item] += 1
-    
+    """Validate dataset against expected statistical properties."""
     n = len(transactions)
     
-    unique_txns = set(tuple(t) for t in transactions)
-    print(f"\n=== Dataset Validation ===")
-    print(f"Transactions: {n}")
-    print(f"Unique transactions: {len(unique_txns)}")
-    print(f"Avg transaction length: {sum(len(t) for t in transactions) / n:.2f}")
-    
-    num_core = max(3, num_items // 6)
-    num_plateau = max(5, num_items // 2)
-    num_tail = num_items - num_core - num_plateau
-    
-    print(f"\n=== Item Support (Actual) ===")
-    print(f"Core items (0-{num_core-1}) - target 90%:")
-    for item in range(num_core):
-        pct = (counts.get(item, 0) / n) * 100
-        print(f"  Item {item}: {pct:.1f}%")
-    
-    print(f"Plateau items ({num_core}-{num_core+num_plateau-1}) - target 70%:")
-    plateau_supports = [(counts.get(item, 0) / n) * 100 for item in range(num_core, num_core + num_plateau)]
-    print(f"  Range: {min(plateau_supports):.1f}% - {max(plateau_supports):.1f}%")
-    print(f"  Average: {sum(plateau_supports)/len(plateau_supports):.1f}%")
-    
-    print(f"Tail items ({num_core+num_plateau}-{num_items-1}) - target 5-7%:")
-    tail_supports = [(counts.get(item, 0) / n) * 100 for item in range(num_core + num_plateau, num_items)]
-    if tail_supports:
-        print(f"  Range: {min(tail_supports):.1f}% - {max(tail_supports):.1f}%")
-    
-    print(f"Dummy items ({num_items}+) - each appears once (0.007% each)")
-    
-    freq_5 = sum(1 for i in range(num_items) if counts.get(i, 0) >= 0.05 * n)
-    freq_10 = sum(1 for i in range(num_items) if counts.get(i, 0) >= 0.10 * n)
-    freq_25 = sum(1 for i in range(num_items) if counts.get(i, 0) >= 0.25 * n)
-    freq_50 = sum(1 for i in range(num_items) if counts.get(i, 0) >= 0.50 * n)
-    freq_90 = sum(1 for i in range(num_items) if counts.get(i, 0) >= 0.90 * n)
-    
-    print(f"\n=== Frequent Items at Each Threshold (excl. dummy) ===")
-    print(f"  5%: {freq_5} items")
-    print(f" 10%: {freq_10} items (Core + Plateau)")  
-    print(f" 25%: {freq_25} items (Core + Plateau)")
-    print(f" 50%: {freq_50} items (Core + Plateau)")
-    print(f" 90%: {freq_90} items (Core only)")
+    # Count item frequencies
+    counts = Counter()
+    for trans in transactions:
+        counts.update(trans)
 
 
 def main():
-    # Default parameters
-    num_items = 30
-    num_transactions = 15000
-    
-    if len(sys.argv) == 3:
+    if len(sys.argv) != 3:
+        num_items = 25
+        num_transactions = 15000
+    else:
         num_items = int(sys.argv[1])
         num_transactions = int(sys.argv[2])
-    elif len(sys.argv) != 1:
-        print(f"Usage: {sys.argv[0]} <num_items> <num_transactions>")
-        print(f"  num_items: 20-40 (default: 30)")
-        print(f"  num_transactions: typically 15000")
-        sys.exit(1)
-    
-    print(f"Generating dataset: {num_items} items, {num_transactions} transactions...")
     
     transactions = generate_dataset(num_items, num_transactions)
     
@@ -164,8 +81,8 @@ def main():
     write_dataset(transactions, output_path)
     
     validate_dataset(transactions, num_items)
-    
-    print(f"\nOutput: {output_path}")
+
+    print(f"Dataset generated with {num_transactions} transactions and {num_items} items.")
 
 
 if __name__ == "__main__":
