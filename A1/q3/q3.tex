@@ -1,0 +1,375 @@
+\documentclass[12pt,a4paper]{article}
+
+% Core Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Page geometry
+\geometry{margin=1in}
+
+% Colors
+\definecolor{indigoblue}{RGB}{0, 51, 102}
+\definecolor{sectioncolor}{RGB}{0, 76, 153}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=indigoblue,
+    urlcolor=indigoblue,
+    citecolor=indigoblue
+}
+
+% Section formatting
+\titleformat{\section}{\Large\bfseries\color{sectioncolor}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{indigoblue}}{\thesubsection}{1em}{}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small COL761: Data Mining}
+\fancyhead[R]{\small Assignment 1 - Part 3}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\onehalfspacing
+
+\begin{document}
+
+% ==============================================================================
+% COVER PAGE
+% ==============================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    {\Huge\bfseries\color{indigoblue} COL761 Data Mining}\\[0.5cm]
+    {\LARGE Assignment 1}\\[0.3cm]
+    {\Large\textbf{Part 3: Graph Indexing}}\\[2cm]
+    
+    {\LARGE\bfseries Team VindyCS5}\\[0.5cm]
+    
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Name} & \textbf{Entry Number} \\
+        \midrule
+        Abhiram Dharme & 2022CS51139 \\
+        Raj Chandak & 2022CS51643 \\
+        Purushottam Sharma & 2022CS51635 \\
+        \bottomrule
+    \end{tabular}\\[1cm]
+    
+    \rule{\textwidth}{0.5pt}\\[0.3cm]
+    {\large Submitted: February 2, 2026}
+    \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+% PROBLEM STATEMENT
+%==============================================================================
+\section{Problem Statement}
+\textit{[10 (report) + 35 (competitive scoring) marks]}
+
+Given a database of graphs $\mathcal{D} = \{g_1, g_2, \ldots, g_n\}$ and a query graph $q$, the goal is to efficiently identify a \textbf{candidate set} $C_q \subseteq \mathcal{D}$ containing all graphs that potentially contain $q$ as a subgraph.
+
+The performance metric is:
+\[
+s_q = \frac{|R_q|}{|C_q|}
+\]
+where $|R_q|$ is the number of true positives (graphs actually containing $q$) and $|C_q|$ is the candidate set size. \textbf{Larger scores indicate better pruning.}
+
+\subsection{Key Insight}
+
+The necessary condition for subgraph isomorphism states: if $q \subseteq g_i$, then every substructure (fragment) present in $q$ must also be present in $g_i$. By identifying \textbf{discriminative subgraph fragments}, we can efficiently prune the candidate set.
+
+%==============================================================================
+% APPROACH
+%==============================================================================
+\section{Approach: gIndex-Inspired Feature Mining}
+
+Our approach is inspired by the \textbf{gIndex} framework \cite{yan2004gindex}, which identifies discriminative subgraph fragments to construct a feature-based index. We mine multiple types of substructures and select the most discriminative ones based on variance scoring.
+
+\subsection{Feature Types}
+
+We mine six categories of subgraph features:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llcc}
+\toprule
+\textbf{Feature Type} & \textbf{Description} & \textbf{Max Selected} & \textbf{Selection Method} \\
+\midrule
+Node Labels & Individual vertex labels & 20 & Frequency (top-k) \\
+Edge Labels & Canonical edge triples $(l_u, e, l_v)$ & 30 & Frequency (top-k) \\
+Path-3 & 3-node paths (2 edges) & 90 & Variance \\
+Path-4 & 4-node paths (3 edges) & 160 & Variance \\
+Cycle-5 & 5-node cycles & 40 & Variance \\
+Cycle-6 & 6-node cycles & 50 & Variance \\
+\bottomrule
+\end{tabular}
+\caption{Feature Types and Selection Counts}
+\end{table}
+
+\subsection{Canonical Representation}
+
+Each feature type uses a \textbf{canonical form} to avoid redundant features:
+
+\begin{itemize}
+    \item \textbf{Edge}: Ordered as $(l_u, e, l_v)$ where $l_u \leq l_v$
+    \item \textbf{Path-3}: Represented as $(l_a, e_1, l_b, e_2, l_c)$ with lexicographic ordering
+    \item \textbf{Path-4}: Forward/backward ordering, choosing the lexicographically smaller
+    \item \textbf{Cycles}: Sorted node labels + sorted edge labels (order-independent)
+\end{itemize}
+
+%==============================================================================
+% FEATURE SELECTION
+%==============================================================================
+\section{Feature Selection: Variance-Based Scoring}
+
+\subsection{Motivation}
+
+Not all mined substructures are equally useful for pruning. Features that appear in \textbf{too many} or \textbf{too few} graphs provide little discriminative power:
+
+\begin{itemize}
+    \item Features in 99\% of graphs: Almost never prune anything
+    \item Features in 1\% of graphs: Rarely present in queries
+\end{itemize}
+
+\subsection{Variance Score}
+
+We use the \textbf{Bernoulli variance} as the discriminative score:
+
+\[
+\text{score}(f) = p(1-p) \quad \text{where} \quad p = \frac{\text{count}(f)}{N}
+\]
+
+This score is maximized when $p = 0.5$ (feature present in exactly half the graphs), providing maximum discriminative power.
+
+\subsection{Selection Algorithm}
+
+\begin{algorithm}[H]
+\caption{Variance-Based Feature Selection}
+\begin{algorithmic}[1]
+\Require Frequency map $\texttt{freq}$, database size $N$, budget $k$
+\Ensure Selected features $S$
+\State $\texttt{scored} \gets []$
+\For{each feature $f$ with count $c$ in $\texttt{freq}$}
+    \State $p \gets c / N$
+    \State $\text{score} \gets p \times (1 - p)$
+    \If{$\text{score} > 0$}
+        \State Append $(\text{score}, f)$ to $\texttt{scored}$
+    \EndIf
+\EndFor
+\State Sort $\texttt{scored}$ in descending order
+\State \Return top $k$ features from $\texttt{scored}$
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+% FEATURE EXTRACTION
+%==============================================================================
+\section{Feature Extraction via Subgraph Isomorphism}
+
+\subsection{Convert Phase}
+
+Once discriminative features are identified, we convert each graph (database or query) into a \textbf{binary feature vector}:
+
+\[
+v_g = (b_1, b_2, \ldots, b_k) \in \{0,1\}^k
+\]
+
+where $b_j = 1$ if and only if feature graph $f_j$ is subgraph-isomorphic to $g$.
+
+\subsection{Implementation}
+
+We use \textbf{rustworkx} (Rust-based graph library) for efficient subgraph isomorphism testing:
+
+\begin{verbatim}
+is_present = rx.is_subgraph_isomorphic(
+    graph, feature,
+    node_matcher=lambda x, y: x['label'] == y['label'],
+    edge_matcher=lambda x, y: x['label'] == y['label'],
+    induced=False
+)
+\end{verbatim}
+
+This provides significant speedup over pure Python implementations.
+
+%==============================================================================
+% CANDIDATE GENERATION
+%==============================================================================
+\section{Candidate Set Generation}
+
+\subsection{Necessary Condition}
+
+For a database graph $g_i$ to contain query $q$ as a subgraph, every feature present in $q$ must also be present in $g_i$:
+
+\[
+g_i \in C_q \iff v_q \leq v_{g_i} \quad \text{(component-wise)}
+\]
+
+\subsection{Algorithm}
+
+\begin{algorithm}[H]
+\caption{Candidate Set Generation}
+\begin{algorithmic}[1]
+\Require Database features $V_D$, query features $v_q$
+\Ensure Candidate set $C_q$
+\State $C_q \gets \emptyset$
+\For{each database graph $g_i$ with features $v_{g_i}$}
+    \If{$v_q \leq v_{g_i}$ (all query features present)}
+        \State Add $g_i$ to $C_q$
+    \EndIf
+\EndFor
+\State \Return $C_q$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Optimization}
+
+The component-wise comparison $v_q \leq v_{g_i}$ is implemented using NumPy's vectorized operations:
+
+\begin{verbatim}
+if np.all(query_vector <= db_vector):
+    candidates.append(graph_id)
+\end{verbatim}
+
+This allows batch processing of all database graphs efficiently.
+
+%==============================================================================
+% IMPLEMENTATION DETAILS
+%==============================================================================
+\section{Implementation Details}
+
+\subsection{Pipeline Overview}
+
+\begin{enumerate}
+    \item \textbf{identify.sh}: Mine discriminative subgraphs from database
+    \begin{itemize}
+        \item Parse database graphs
+        \item Mine node, edge, path, and cycle features
+        \item Select top-k by frequency (nodes/edges) or variance (paths/cycles)
+        \item Save as pickled rustworkx graphs
+    \end{itemize}
+    
+    \item \textbf{convert.sh}: Convert graphs to feature vectors
+    \begin{itemize}
+        \item Load discriminative subgraphs
+        \item For each graph, test subgraph isomorphism against each feature
+        \item Output binary NumPy matrix
+    \end{itemize}
+    
+    \item \textbf{generate\_candidates.sh}: Generate candidate sets
+    \begin{itemize}
+        \item Load database and query feature matrices
+        \item For each query, find databases where $v_q \leq v_{g_i}$
+        \item Output in required format
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Libraries Used}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Library} & \textbf{Purpose} \\
+\midrule
+rustworkx & Graph representation and subgraph isomorphism \\
+NumPy & Feature matrix operations \\
+pickle & Serialization of feature graphs \\
+\bottomrule
+\end{tabular}
+\caption{External Libraries}
+\end{table}
+
+%==============================================================================
+% DESIGN DECISIONS
+%==============================================================================
+\section{Design Decisions and Rationale}
+
+\subsection{Why Multiple Feature Types?}
+
+Different query graphs have different structural characteristics. By including multiple feature types:
+
+\begin{itemize}
+    \item \textbf{Node/Edge labels}: Prune based on basic structural requirements
+    \item \textbf{Path-3/Path-4}: Capture local connectivity patterns
+    \item \textbf{Cycle-5/Cycle-6}: Capture cyclic structures common in molecular graphs
+\end{itemize}
+
+\subsection{Why Variance Scoring?}
+
+Variance scoring ($p(1-p)$) naturally balances:
+\begin{itemize}
+    \item Features that are too common (low pruning power)
+    \item Features that are too rare (unlikely to appear in queries)
+\end{itemize}
+
+Features with $p \approx 0.5$ provide maximum information for distinguishing graphs.
+
+\subsection{Why rustworkx?}
+
+rustworkx provides:
+\begin{itemize}
+    \item Rust-level performance for subgraph isomorphism
+    \item Python API for ease of use
+    \item Significant speedup over NetworkX (10-100$\times$)
+\end{itemize}
+
+%==============================================================================
+% CONCLUSION
+%==============================================================================
+\section{Conclusion}
+
+Our gIndex-inspired approach combines:
+\begin{enumerate}
+    \item \textbf{Diverse feature mining}: Node labels, edges, paths, and cycles
+    \item \textbf{Variance-based selection}: Maximizing discriminative power
+    \item \textbf{Efficient implementation}: rustworkx for fast isomorphism testing
+\end{enumerate}
+
+This approach generates compact candidate sets by exploiting the necessary condition for subgraph isomorphism across multiple structural feature types.
+
+%==============================================================================
+% REFERENCES
+%==============================================================================
+\newpage
+\begin{thebibliography}{9}
+
+\bibitem{yan2004gindex}
+Yan, X., Yu, P. S., \& Han, J. (2004).
+\textit{Graph indexing: A frequent structure-based approach}.
+ACM SIGMOD, 335--346.
+
+\bibitem{cheng2007fg}
+Cheng, J., Ke, Y., Ng, W., \& Lu, A. (2007).
+\textit{Fg-index: towards verification-free query processing on graph databases}.
+ACM SIGMOD, 857--872.
+
+\bibitem{shang2008gsting}
+Shang, H., Zhang, Y., Lin, X., \& Yu, J. X. (2008).
+\textit{Taming verification hardness: An efficient algorithm for testing subgraph isomorphism}.
+VLDB, 1--12.
+
+\end{thebibliography}
+
+\end{document}
