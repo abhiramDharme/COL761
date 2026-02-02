@@ -3,12 +3,8 @@
 # Task 1: Run Apriori and FP-Tree algorithms at different support thresholds
 # Usage: bash q1_1.sh <path_apriori_executable> <path_fp_executable> <path_dataset> <path_out>
 
-# ============================================
-# CONFIGURATION - CHANGE THESE IF NEEDED
-# ============================================
 TIMEOUT_SECONDS=3600  # 1 hour timeout per algorithm per threshold
 TIMEOUT_MESSAGE=""
-# ============================================
 
 # Check arguments
 if [ "$#" -ne 4 ]; then

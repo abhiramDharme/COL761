@@ -3,13 +3,8 @@
 # Part 2: Run gSpan, FSG, and Gaston algorithms on Yeast dataset
 # Usage: bash q2.sh <path_gspan_executable> <path_fsg_executable> <path_gaston_executable> <path_dataset> <path_out>
 
-# ============================================
-# TIMEOUT CONFIGURATION (Currently Disabled)
-# Uncomment to enable 1-hour timeout per algorithm
-# ============================================
 TIMEOUT_SECONDS=3600
 TIMEOUT_MESSAGE=""
-# ============================================
 
 # Check arguments
 if [ "$#" -ne 5 ]; then
@@ -33,9 +28,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # WARNING: 5% can take 18+ hours for gSpan. Consider skipping it.
 THRESHOLDS=(95 50 25 10 5)
 
-# ============================================
-# STEP 1: Convert dataset ONCE before the loop
-# ============================================
 echo "Converting dataset to algorithm-specific formats..."
 
 # Clean up any old converted files to prevent double-pathing errors
@@ -54,9 +46,6 @@ declare -a GSPAN_TIMES
 declare -a FSG_TIMES
 declare -a GASTON_TIMES
 
-# ============================================
-# STEP 2: Run algorithms (dataset already parsed)
-# ============================================
 echo "Running algorithms at different support thresholds..."
 
 for thresh in "${THRESHOLDS[@]}"; do
