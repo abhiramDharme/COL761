@@ -180,22 +180,22 @@ def select_features_best(pool, k=50, total_graphs=0):
             # Count how many NEW graphs this feature covers
             new_cov = len(item['where'] - covered)
             
-            # IMPROVEMENT 4: Stronger anti-correlation scoring
-            # Heavily penalize features that overlap too much with already-covered graphs
+            # IMPROVEMENT 4: Moderate anti-correlation scoring
+            # Penalize features that overlap with already-covered graphs but not too strongly
             if len(covered) > 0 and len(item['where']) > 0:
                 overlap_ratio = len(item['where'] & covered) / len(item['where'])
-                # Anti-correlation: penalize high overlap very strongly
-                anti_corr = 1.0 - overlap_ratio * 0.85
+                # Anti-correlation: moderate penalty for overlap
+                anti_corr = 1.0 - overlap_ratio * 0.6
             else:
                 anti_corr = 1.0
             
-            # Prefer wider range of coverage for better filtering
+            # Prefer wide range of coverage for better filtering
             coverage_bonus = 1.0
-            if 0.15 <= item['coverage'] <= 0.45:
-                coverage_bonus = 1.3  # Good range for filtering
+            if 0.10 <= item['coverage'] <= 0.50:
+                coverage_bonus = 1.2  # Good range for filtering
             
-            # Combined gain score - emphasize size more for specificity
-            gain = (new_cov + 1) * anti_corr * (item['size'] ** 0.6) * coverage_bonus
+            # Combined gain score
+            gain = (new_cov + 1) * anti_corr * (item['size'] ** 0.5) * coverage_bonus
             
             if gain > best_gain:
                 best_gain = gain
