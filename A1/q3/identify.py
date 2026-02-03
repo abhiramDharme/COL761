@@ -96,8 +96,7 @@ def select_features_best(pool, k=50, total_graphs=0):
     """
     Select k discriminative subgraph features from mined patterns.
     
-    Key improvements:
-    1. Filter out high-density features (>70% density) - provide weak filtering
+    1. Filter out high-density features (>55% density) - provide weak filtering
     2. Penalize very rare features (<10% density) - not enough coverage
     3. Prefer features near 25% density for optimal filtering
     4. Maximize diversity: avoid features that filter same graphs
@@ -136,7 +135,6 @@ def select_features_best(pool, k=50, total_graphs=0):
         if coverage_score < 0.1:
             coverage_score = 0.1
         
-        # Bonus for larger patterns (more specific, better filtering)
         # Medium patterns (4-6 edges) often provide best balance
         if size >= 6:
             size_bonus = math.exp(size * 0.55)
@@ -158,12 +156,11 @@ def select_features_best(pool, k=50, total_graphs=0):
     
     print(f"    [{len(candidates)} valid candidates, filtered {filtered_high} high-density, {filtered_low} low-density]")
     
-    # Sort by base score for initial ordering
     candidates.sort(key=lambda x: -x['score'])
     
     selected = []
-    covered = set()  # Graphs already covered by selected features
-    seen = set()     # Pattern hashes to avoid duplicates
+    covered = set()
+    seen = set()
     
     # IMPROVEMENT 3: Greedy selection maximizing diversity
     for i in range(k):
@@ -177,24 +174,20 @@ def select_features_best(pool, k=50, total_graphs=0):
             if item['hash'] in seen:
                 continue
             
-            # Count how many NEW graphs this feature covers
             new_cov = len(item['where'] - covered)
             
             # IMPROVEMENT 4: Moderate anti-correlation scoring
             # Penalize features that overlap with already-covered graphs but not too strongly
             if len(covered) > 0 and len(item['where']) > 0:
                 overlap_ratio = len(item['where'] & covered) / len(item['where'])
-                # Anti-correlation: moderate penalty for overlap
                 anti_corr = 1.0 - overlap_ratio * 0.6
             else:
                 anti_corr = 1.0
             
-            # Prefer wide range of coverage for better filtering
             coverage_bonus = 1.0
             if 0.10 <= item['coverage'] <= 0.50:
-                coverage_bonus = 1.2  # Good range for filtering
+                coverage_bonus = 1.2
             
-            # Combined gain score
             gain = (new_cov + 1) * anti_corr * (item['size'] ** 0.5) * coverage_bonus
             
             if gain > best_gain:

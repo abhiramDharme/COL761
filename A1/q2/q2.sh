@@ -24,8 +24,6 @@ mkdir -p "$OUT_DIR"
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Support thresholds to test (HIGH TO LOW - easy first!)
-# WARNING: 5% can take 18+ hours for gSpan. Consider skipping it.
 THRESHOLDS=(95 50 25 10 5)
 
 echo "Converting dataset to algorithm-specific formats..."
