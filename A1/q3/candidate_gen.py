@@ -12,7 +12,7 @@ def generate_candidates(db_features, query_features):
             gv = db_features[gi]
 
             if np.all(qv <= gv):
-                cand.append(gi + 1)
+                cand.append(gi)  # 0-based indexing
 
         candidates.append(cand)
 
@@ -40,7 +40,7 @@ def main():
 
     with open(output_path, "w") as f:
         for i, cand in enumerate(candidates):
-            f.write(f"q # {i+1}\n")
+            f.write(f"q # {i}\n")  # 0-based indexing
             f.write("c # " + " ".join(map(str, cand)) + "\n")
     
     print(f"Generated candidates for {len(candidates)} queries")

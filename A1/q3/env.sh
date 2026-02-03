@@ -1,4 +1,5 @@
 #!/bin/bash
-python3 -m venv venv
-source venv/bin/activate
-pip install numpy rustworkx
+# env.sh - Environment setup for graph indexing
+source .venv/bin/activate
+
+pip install networkx pandas numpy joblib gspan-mining rustworkx

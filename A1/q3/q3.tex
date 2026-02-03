@@ -1,0 +1,535 @@
+\documentclass[12pt,a4paper]{article}
+
+% Core Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Page geometry
+\geometry{margin=1in}
+
+% Colors
+\definecolor{indigoblue}{RGB}{0, 51, 102}
+\definecolor{sectioncolor}{RGB}{0, 76, 153}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=indigoblue,
+    urlcolor=indigoblue,
+    citecolor=indigoblue
+}
+
+% Section formatting
+\titleformat{\section}{\Large\bfseries\color{sectioncolor}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{indigoblue}}{\thesubsection}{1em}{}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small COL761: Data Mining}
+\fancyhead[R]{\small Assignment 1 - Part 3}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\onehalfspacing
+
+\begin{document}
+
+% ==============================================================================
+% COVER PAGE
+% ==============================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    {\Huge\bfseries\color{indigoblue} COL761 Data Mining}\\[0.5cm]
+    {\LARGE Assignment 1}\\[0.3cm]
+    {\Large\textbf{Part 3: Graph Indexing}}\\[2cm]
+    
+    {\LARGE\bfseries Team VindyCS5}\\[0.5cm]
+    
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Name} & \textbf{Entry Number} \\
+        \midrule
+        Abhiram Dharme & 2022CS51139 \\
+        Raj Chandak & 2022CS51643 \\
+        Purushottam Sharma & 2022CS51635 \\
+        \bottomrule
+    \end{tabular}\\[1cm]
+    
+    \rule{\textwidth}{0.5pt}\\[0.3cm]
+    {\large Submitted: February 2, 2026}
+    \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+% PROBLEM STATEMENT
+%==============================================================================
+\section{Problem Statement}
+\textit{[10 (report) + 35 (competitive scoring) marks]}
+
+Given a database of graphs $\mathcal{D} = \{g_1, g_2, \ldots, g_n\}$ and a query graph $q$, the goal is to efficiently identify a \textbf{candidate set} $C_q \subseteq \mathcal{D}$ containing all graphs that potentially contain $q$ as a subgraph.
+
+The performance metric is:
+\[
+s_q = \frac{|R_q|}{|C_q|}
+\]
+where $|R_q|$ is the number of true positives (graphs actually containing $q$) and $|C_q|$ is the candidate set size. \textbf{Larger scores indicate better pruning.}
+
+\subsection{Key Insight}
+
+The necessary condition for subgraph isomorphism states: if $q \subseteq g_i$, then every substructure (fragment) present in $q$ must also be present in $g_i$. By identifying \textbf{discriminative subgraph fragments}, we can efficiently prune the candidate set.
+
+%==============================================================================
+% APPROACH
+%==============================================================================
+\section{Approach: gSpan-Based Frequent Subgraph Mining}
+
+Our approach uses \textbf{gSpan} (graph-based Substructure Pattern Mining) to mine frequent subgraph patterns from the database, followed by advanced feature selection using multiple heuristics.
+
+\subsection{Mining Pipeline}
+
+\begin{enumerate}
+    \item \textbf{Frequent Subgraph Mining}: Use gSpan to discover all frequent connected subgraphs
+    \item \textbf{Support Tracking}: Track which database graphs contain each pattern (using \texttt{where} parameter)
+    \item \textbf{Advanced Selection}: Select exactly 50 features using entropy, correlation, and novelty heuristics
+\end{enumerate}
+
+\subsection{Adaptive Support Mining}
+
+We use an adaptive strategy to mine patterns at multiple support levels:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ccc}
+\toprule
+\textbf{Support Level} & \textbf{Min Support (rel.)} & \textbf{Strategy} \\
+\midrule
+Level 1 & 35\% & Most selective patterns \\
+Level 2 & 30\% & High-confidence patterns \\
+Level 3 & 25\% & Moderate frequency \\
+Level 4 & 15\% & Lower frequency \\
+Level 5 & 10\% & Rare patterns \\
+Level 6 & 5\% & Very rare patterns \\
+Fallback & 1\% & Emergency mining \\
+\bottomrule
+\end{tabular}
+\caption{Adaptive Support Levels for Pattern Mining}
+\end{table}
+
+The algorithm starts at 35\% support and stops when at least 50 candidate patterns are found, enabling \textbf{early stopping} for efficiency.
+
+\subsection{Pattern Constraints}
+
+\begin{itemize}
+    \item \textbf{Minimum vertices}: 2 (at least one edge)
+    \item \textbf{Maximum vertices}: 8 (computational constraint)
+    \item \textbf{Connected graphs only}: Ensures semantic coherence
+\end{itemize}
+
+%==============================================================================
+% FEATURE SELECTION
+%==============================================================================
+\section{Advanced Feature Selection}
+
+\subsection{Selection Heuristics}
+
+We employ a \textbf{multi-heuristic} approach that combines three complementary scoring mechanisms:
+
+\subsubsection{1. Entropy-Based Scoring}
+
+Patterns with moderate support (30-70\% of graphs) maximize \textbf{information gain}:
+
+\[
+H(p) = -p \log_2(p) - (1-p) \log_2(1-p)
+\]
+
+where $p$ is the fraction of database graphs containing the pattern.
+
+\textbf{Intuition}: Features that split the database roughly in half provide maximum discriminative power for pruning.
+
+\subsubsection{2. Size-Weighted Scoring}
+
+Larger subgraph patterns provide better filtering power:
+
+\[
+w_{\text{size}} = e^{0.5 \times |E|}
+\]
+
+where $|E|$ is the number of edges in the pattern.
+
+\textbf{Rationale}: A 5-edge pattern imposes stricter constraints than a 2-edge pattern, leading to smaller candidate sets.
+
+\subsubsection{3. Selectivity Bonus}
+
+Rarer patterns (support < 50\%) receive a selectivity bonus:
+
+\[
+\text{selectivity\_bonus} = 
+\begin{cases}
+1.0 & \text{if } p < 0.5 \\
+0.7 & \text{if } p \geq 0.5
+\end{cases}
+\]
+
+\textbf{Effect}: Prioritizes features that aggressively filter candidates.
+
+\subsection{Combined Scoring Function}
+
+The final score for each candidate pattern is:
+
+\[
+\text{score}(f) = H(p_f) \times w_{\text{size}}(f) \times \text{selectivity\_bonus}(f)
+\]
+
+\subsection{Greedy Selection with Diversity}
+
+After scoring, we use a \textbf{greedy algorithm} with two diversity mechanisms:
+
+\begin{algorithm}[H]
+\caption{Greedy Feature Selection with Diversity}
+\begin{algorithmic}[1]
+\Require Scored patterns $P$, target count $k=50$
+\Ensure Selected features $S$
+\State $S \gets \emptyset$, $\text{covered} \gets \emptyset$, $\text{seen\_hashes} \gets \emptyset$
+\For{each pattern $p$ in $P$ (sorted by score descending)}
+    \If{$|S| \geq k$}
+        \State \textbf{break}
+    \EndIf
+    \State $h \gets \text{canonical\_hash}(p)$
+    \If{$h \in \text{seen\_hashes}$}
+        \State \textbf{continue} \Comment{Skip duplicates}
+    \EndIf
+    \State $\text{overlap} \gets |\text{where}(p) \cap \text{covered}| / |\text{where}(p)|$
+    \If{$\text{overlap} > 0.9$ \textbf{and} $|S| > 10$}
+        \State \textbf{continue} \Comment{Correlation check: skip if >90\% redundant}
+    \EndIf
+    \State $S \gets S \cup \{p\}$
+    \State $\text{seen\_hashes} \gets \text{seen\_hashes} \cup \{h\}$
+    \State $\text{covered} \gets \text{covered} \cup \text{where}(p)$
+\EndFor
+\State \Return $S$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Correlation Awareness}
+
+We avoid selecting patterns with \textbf{high overlap} ($>$90\%) in their occurrence sets. This prevents redundancy and ensures diversity in filtering capability.
+
+\subsubsection{Novelty Bonus}
+
+Patterns covering \textbf{new graphs} (not yet covered by selected features) receive implicit priority through the coverage tracking mechanism.
+
+%==============================================================================
+% FEATURE EXTRACTION
+%==============================================================================
+\section{Feature Extraction via Subgraph Isomorphism}
+
+\subsection{Convert Phase}
+
+Once discriminative features are identified, we convert each graph (database or query) into a \textbf{binary feature vector}:
+
+\[
+v_g = (b_1, b_2, \ldots, b_k) \in \{0,1\}^k
+\]
+
+where $b_j = 1$ if and only if feature graph $f_j$ is subgraph-isomorphic to $g$.
+
+\subsection{Implementation}
+
+We use \textbf{rustworkx} (Rust-based graph library) for efficient subgraph isomorphism testing:
+
+\begin{verbatim}
+is_present = rx.is_subgraph_isomorphic(
+    graph, feature,
+    node_matcher=lambda x, y: x['label'] == y['label'],
+    edge_matcher=lambda x, y: x['label'] == y['label'],
+    induced=False
+)
+\end{verbatim}
+
+This provides significant speedup over pure Python implementations.
+
+%==============================================================================
+% CANDIDATE GENERATION
+%==============================================================================
+\section{Candidate Set Generation}
+
+\subsection{Necessary Condition}
+
+For a database graph $g_i$ to contain query $q$ as a subgraph, every feature present in $q$ must also be present in $g_i$:
+
+\[
+g_i \in C_q \iff v_q \leq v_{g_i} \quad \text{(component-wise)}
+\]
+
+\subsection{Algorithm}
+
+\begin{algorithm}[H]
+\caption{Candidate Set Generation}
+\begin{algorithmic}[1]
+\Require Database features $V_D$, query features $v_q$
+\Ensure Candidate set $C_q$
+\State $C_q \gets \emptyset$
+\For{each database graph $g_i$ with features $v_{g_i}$}
+    \If{$v_q \leq v_{g_i}$ (all query features present)}
+        \State Add $g_i$ to $C_q$
+    \EndIf
+\EndFor
+\State \Return $C_q$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Optimization}
+
+The component-wise comparison $v_q \leq v_{g_i}$ is implemented using NumPy's vectorized operations:
+
+\begin{verbatim}
+if np.all(query_vector <= db_vector):
+    candidates.append(graph_id)
+\end{verbatim}
+
+This allows batch processing of all database graphs efficiently.
+
+%==============================================================================
+% IMPLEMENTATION DETAILS
+%==============================================================================
+\section{Implementation Details}
+
+\subsection{Pipeline Overview}
+
+\begin{enumerate}
+    \item \textbf{identify.py}: Mine discriminative subgraphs using gSpan
+    \begin{itemize}
+        \item Parse database graphs into NetworkX format
+        \item Convert to gSpan input format (integer labels)
+        \item Run gSpan with \texttt{where} tracking at adaptive support levels
+        \item Parse gSpan output to extract patterns with support counts
+        \item Apply advanced feature selection (entropy + correlation + novelty)
+        \item Save exactly 50 selected features in graph format
+    \end{itemize}
+    
+    \item \textbf{convert.py}: Convert graphs to feature vectors
+    \begin{itemize}
+        \item Load discriminativesubgraphs from \texttt{identify.py}
+        \item For each database/query graph, test subgraph isomorphism
+        \item Output binary NumPy matrix (graphs $\times$ 50 features)
+    \end{itemize}
+    
+    \item \textbf{candidate\_gen.py}: Generate candidate sets
+    \begin{itemize}
+        \item Load database and query feature matrices
+        \item For each query, find graphs where $v_q \leq v_{g_i}$
+        \item Output candidates in 0-based indexing format
+    \end{itemize}
+    
+    \item \textbf{eval.py}: Evaluate precision (optional)
+    \begin{itemize}
+        \item Compare candidate sets against ground truth
+        \item Compute precision scores
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Libraries Used}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Library} & \textbf{Purpose} \\
+\midrule
+gspan-mining & Frequent subgraph mining with DFS code \\
+NetworkX & Graph representation and manipulation \\
+pandas & Data frame operations (patched for compatibility) \\
+NumPy & Feature matrix operations \\
+rustworkx & Subgraph isomorphism testing (in convert.py) \\
+\bottomrule
+\end{tabular}
+\caption{External Libraries}
+\end{table}
+
+\subsection{Key Implementation Notes}
+
+\subsubsection{Label Conversion}
+
+gSpan requires \textbf{integer labels}. We maintain bidirectional mappings:
+\begin{itemize}
+    \item \texttt{node\_label\_map}: string $\rightarrow$ int
+    \item \texttt{edge\_label\_map}: string $\rightarrow$ int
+\end{itemize}
+
+These are used to convert the database to gSpan format and restore original labels after mining.
+
+\subsubsection{Canonical Hashing}
+
+To avoid duplicate patterns, we use a canonical hash:
+
+\begin{verbatim}
+hash = (num_nodes, num_edges, 
+        sorted(node_labels), 
+        sorted(edge_triples))
+\end{verbatim}
+
+This ensures topologically identical patterns are deduplicated.
+
+\subsubsection{0-Based Indexing}
+
+All output uses \textbf{0-based indexing} for both query IDs and graph IDs, as required by the assignment specification.
+
+%==============================================================================
+% DESIGN DECISIONS
+%==============================================================================
+\section{Design Decisions and Rationale}
+
+\subsection{Why gSpan for Pattern Mining?}
+
+gSpan provides several advantages over manual pattern enumeration:
+
+\begin{itemize}
+    \item \textbf{Completeness}: Discovers all frequent connected subgraphs systematically
+    \item \textbf{DFS Code}: Uses canonical depth-first search codes to avoid duplicate patterns
+    \item \textbf{Efficiency}: Prunes the search space using anti-monotonicity (if pattern is infrequent, all superpatterns are too)
+    \item \textbf{Where Tracking}: Optionally tracks which graphs contain each pattern (critical for correlation analysis)
+\end{itemize}
+
+Compared to manually mining specific pattern types (paths, cycles), gSpan can discover \textbf{arbitrary topologies} that may be more discriminative for specific datasets.
+
+\subsection{Why Multi-Heuristic Feature Selection?}
+
+Our advanced selection combines three complementary criteria:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lp{8cm}}
+\toprule
+\textbf{Heuristic} & \textbf{Purpose} \\
+\midrule
+Entropy & Identifies patterns that best split the database (information-theoretic optimality) \\
+Size weighting & Favors larger patterns which impose stricter structural constraints \\
+Correlation & Avoids redundant patterns covering the same graph sets \\
+Novelty & Ensures diverse coverage of the database \\
+\bottomrule
+\end{tabular}
+\caption{Multi-Heuristic Selection Rationale}
+\end{table}
+
+\textbf{Single-heuristic limitations}:
+\begin{itemize}
+    \item Pure frequency: May select many highly overlapping patterns
+    \item Pure variance: Ignores pattern size and correlation
+    \item Pure size: Large patterns may be too rare to help with most queries
+\end{itemize}
+
+\subsection{Why Adaptive Support Levels?}
+
+Starting at high support (35\%) and progressively lowering has two benefits:
+
+\begin{enumerate}
+    \item \textbf{Efficiency}: gSpan terminates early if enough patterns are found at high support
+    \item \textbf{Quality}: High-support patterns are more likely to appear in test queries (better generalization)
+\end{enumerate}
+
+\subsection{Why 0-Based Indexing?}
+
+The assignment specification requires 0-based indexing for graph and query IDs. This aligns with:
+\begin{itemize}
+    \item Python's 0-based indexing convention
+    \item NumPy array indexing
+    \item Modern programming practices
+\end{itemize}
+
+\subsection{Why NetworkX + rustworkx Hybrid?}
+
+\begin{itemize}
+    \item \textbf{NetworkX}: Easy integration with gSpan-mining library, flexible graph manipulation
+    \item \textbf{rustworkx}: 10-100$\times$ faster subgraph isomorphism testing for the convert phase
+\end{itemize}
+
+This hybrid approach balances ease of development with runtime performance.
+
+%==============================================================================
+% ASSUMPTIONS
+%==============================================================================
+\section{Assumptions}
+
+\begin{enumerate}
+    \item \textbf{Graph Format}: Input graphs are in the specified format with lines starting with \texttt{v} for vertices and \texttt{e} for edges.
+    \item \textbf{Duplicate Removal}: The database is pre-processed to remove duplicate graphs before calling \texttt{identify.py}, as specified in the assignment.
+    \item \textbf{Feature Count}: We use exactly \textbf{50 features} selected through advanced multi-heuristic scoring.
+    \item \textbf{Non-induced Isomorphism}: We use non-induced subgraph isomorphism (a feature is present if it appears as a subgraph, not necessarily an induced subgraph).
+    \item \textbf{Binary Features}: All features are binary (0/1), indicating presence or absence of a substructure.
+    \item \textbf{0-Based Indexing}: All query and graph IDs are 0-based, as required by the assignment specification.
+    \item \textbf{Connected Patterns}: gSpan mines only connected subgraphs, ensuring semantic coherence of features.
+\end{enumerate}
+
+%==============================================================================
+% CONCLUSION
+%==============================================================================
+\section{Conclusion}
+
+Our gSpan-based graph indexing approach combines:
+\begin{enumerate}
+    \item \textbf{Systematic pattern mining}: gSpan discovers all frequent connected subgraphs with DFS-based canonicalization
+    \item \textbf{Multi-heuristic selection}: Entropy + size weighting + correlation awareness + novelty
+    \item \textbf{Exactly 50 features}: Compact index with maximal discriminative power
+    \item \textbf{Efficient implementation}: NetworkX for mining, rustworkx for isomorphism testing
+\end{enumerate}
+
+This approach generates compact candidate sets by:
+\begin{itemize}
+    \item Exploiting the necessary condition for subgraph isomorphism
+    \item Selecting diverse, non-redundant discriminative features
+    \item Balancing pattern size, frequency, and information content
+\end{itemize}
+
+The adaptive support mining strategy ensures we find high-quality patterns efficiently, while the greedy selection with correlation filtering maximizes the diversity and coverage of the selected features.
+
+%==============================================================================
+% REFERENCES
+%==============================================================================
+\newpage
+\begin{thebibliography}{9}
+
+\bibitem{yan2005gspan}
+Yan, X., \& Han, J. (2002).
+\textit{gSpan: Graph-based substructure pattern mining}.
+IEEE ICDM, 721--724.
+
+\bibitem{yan2004gindex}
+Yan, X., Yu, P. S., \& Han, J. (2004).
+\textit{Graph indexing: A frequent structure-based approach}.
+ACM SIGMOD, 335--346.
+
+\bibitem{cheng2007fg}
+Cheng, J., Ke, Y., Ng, W., \& Lu, A. (2007).
+\textit{Fg-index: towards verification-free query processing on graph databases}.
+ACM SIGMOD, 857--872.
+
+\bibitem{shang2008gsting}
+Shang, H., Zhang, Y., Lin, X., \& Yu, J. X. (2008).
+\textit{Taming verification hardness: An efficient algorithm for testing subgraph isomorphism}.
+VLDB, 1--12.
+
+\end{thebibliography}
+
+\end{document}

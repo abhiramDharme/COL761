@@ -1,4 +1,5 @@
-source venv/bin/activate
+#!/bin/bash
+# generate_candidates.sh - Generate candidate matches
+# Usage: ./generate_candidates.sh <db.npy> <query.npy> <candidates.dat>
 
-# Usage: ./generate_candidates.sh <db_vecs> <q_vecs> <output> 
-python3 candidate_gen.py "$1" "$2" "$3"
+python3 filter.py "$1" "$2" "$3"
