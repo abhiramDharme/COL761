@@ -93,10 +93,22 @@ def pattern_hash(g):
     return (len(g.nodes()), len(g.edges()), tuple(n_labels), tuple(e_labels))
 
 def select_features_best(pool, k=50, total_graphs=0):
+    """
+    Select k discriminative subgraph features from mined patterns.
+    
+    Key improvements:
+    1. Filter out high-density features (>70% density) - provide weak filtering
+    2. Penalize very rare features (<10% density) - not enough coverage
+    3. Prefer features near 25% density for optimal filtering
+    4. Maximize diversity: avoid features that filter same graphs
+    """
     if not pool or total_graphs == 0:
         return pool[:k]
     
     candidates = []
+    filtered_high = 0
+    filtered_low = 0
+    
     for g in pool:
         size = g.number_of_edges()
         if size < 2:
@@ -106,33 +118,54 @@ def select_features_best(pool, k=50, total_graphs=0):
         where = g.graph.get('where', set())
         coverage = support / total_graphs
         
+        # IMPROVEMENT 1: Filter out high-density features (>55%)
+        # Features present in majority of graphs provide weak filtering
+        if coverage > 0.55:
+            filtered_high += 1
+            continue
+        
+        # IMPROVEMENT 2: Filter very rare features (<10%)
+        # These don't appear in enough graphs to be useful
+        if coverage < 0.10:
+            filtered_low += 1
+            continue
+        
+        # Optimal coverage is around 25% - good balance of filtering power
+        # Score peaks at 25% and decreases towards 10% and 80%
         coverage_score = 1.0 - abs(coverage - 0.25) * 2.0
         if coverage_score < 0.1:
             coverage_score = 0.1
         
-        if size == 4:
-            size_bonus = math.exp(size * 0.6)
+        # Bonus for larger patterns (more specific, better filtering)
+        # Medium patterns (4-6 edges) often provide best balance
+        if size >= 6:
+            size_bonus = math.exp(size * 0.55)
+        elif size == 5:
+            size_bonus = math.exp(size * 0.65)
+        elif size == 4:
+            size_bonus = math.exp(size * 0.7)
         elif size == 3:
-            size_bonus = math.exp(size * 0.45)
-        elif size == 2:
-            size_bonus = math.exp(size * 0.2)
-        else:
-            size_bonus = math.exp(size * 0.4)
+            size_bonus = math.exp(size * 0.5)
+        else:  # size == 2
+            size_bonus = math.exp(size * 0.25)
         
         base_score = coverage_score * size_bonus
         
         candidates.append({
             'graph': g, 'score': base_score, 'where': where,
-            'size': size, 'hash': pattern_hash(g)
+            'size': size, 'hash': pattern_hash(g), 'coverage': coverage
         })
     
+    print(f"    [{len(candidates)} valid candidates, filtered {filtered_high} high-density, {filtered_low} low-density]")
+    
+    # Sort by base score for initial ordering
     candidates.sort(key=lambda x: -x['score'])
-    print(f"    [{len(candidates)} candidates]")
     
     selected = []
-    covered = set()
-    seen = set()
+    covered = set()  # Graphs already covered by selected features
+    seen = set()     # Pattern hashes to avoid duplicates
     
+    # IMPROVEMENT 3: Greedy selection maximizing diversity
     for i in range(k):
         if len(candidates) == 0:
             break
@@ -144,20 +177,31 @@ def select_features_best(pool, k=50, total_graphs=0):
             if item['hash'] in seen:
                 continue
             
+            # Count how many NEW graphs this feature covers
             new_cov = len(item['where'] - covered)
             
-            if len(covered) > 0:
-                overlap = len(item['where'] & covered) / max(1, len(item['where']))
-                anti_corr = 1.0 - overlap * 0.5
+            # IMPROVEMENT 4: Stronger anti-correlation scoring
+            # Heavily penalize features that overlap too much with already-covered graphs
+            if len(covered) > 0 and len(item['where']) > 0:
+                overlap_ratio = len(item['where'] & covered) / len(item['where'])
+                # Anti-correlation: penalize high overlap very strongly
+                anti_corr = 1.0 - overlap_ratio * 0.85
             else:
                 anti_corr = 1.0
             
-            gain = (new_cov + 1) * anti_corr * (item['size'] ** 0.3)
+            # Prefer wider range of coverage for better filtering
+            coverage_bonus = 1.0
+            if 0.15 <= item['coverage'] <= 0.45:
+                coverage_bonus = 1.3  # Good range for filtering
+            
+            # Combined gain score - emphasize size more for specificity
+            gain = (new_cov + 1) * anti_corr * (item['size'] ** 0.6) * coverage_bonus
             
             if gain > best_gain:
                 best_gain = gain
                 best = item
         
+        # Fallback: just pick any unseen pattern
         if best is None:
             for item in candidates:
                 if item['hash'] not in seen:
@@ -194,8 +238,8 @@ if __name__ == "__main__":
     N = len(graphs)
     print(f"{N} graphs loaded.")
     
-    # 30% support
-    support_levels = [0.30, 0.25, 0.20, 0.15]
+    # Mine at decreasing support levels until we get enough patterns
+    support_levels = [0.30, 0.25, 0.20, 0.15, 0.10]
     max_v = 8
     
     final_pool = []
@@ -209,9 +253,11 @@ if __name__ == "__main__":
             break
     
     if not final_pool:
-        final_pool = run_gspan_with_where(graphs, max(1, int(0.10 * N)), max_vert=max_v)
+        min_sup = max(1, int(0.05 * N))
+        print(f"Mining at 5% support (min_sup={min_sup})...")
+        final_pool = run_gspan_with_where(graphs, min_sup, max_vert=max_v)
     
-    print(f"BEST selection: filter size-1, boost size-4...")
+    print(f"Selecting 50 best features...")
     features = select_features_best(final_pool, 50, N)
     
     sizes = Counter(g.number_of_edges() for g in features)
